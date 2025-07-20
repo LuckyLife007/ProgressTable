@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Progress Tracking Table</title>
+    <!-- Firebase App (the core Firebase SDK) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <!-- Firestore SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyCx--hVfOtpP-ftW46Mn4F4jx5JLeAkC_8",
+            authDomain: "progress-table.firebaseapp.com",
+            projectId: "progress-table",
+            storageBucket: "progress-table.firebasestorage.app",
+            messagingSenderId: "316718786622",
+            appId: "1:316718786622:web:a16c5b0467cd8ebe43096f"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+    </script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            overflow-x: auto;
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            min-width: 800px;
+        }
+
+        th {
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 8px;
+            text-align: center;
+            font-weight: bold;
+            border: 2px solid #45a049;
+        }
+
+        th:first-child {
+            background-color: #2196F3;
+            border-color: #1976D2;
+            min-width: 120px;
+        }
+
+        td {
+            border: 2px solid #ddd;
+            text-align: center;
+            vertical-align: middle;
+            height: 50px;
+            width: 80px;
+            position: relative;
+        }
+
+        td:first-child {
+            background-color: #e3f2fd;
+            font-weight: bold;
+            color: #1976D2;
+            cursor: default;
+            padding: 8px;
+            min-width: 120px;
+        }
+
+        .cell-content {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            width: 100%;
+            font-size: 20px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            user-select: none;
+        }
+
+        .not-done {
+            background-color: #ffebee;
+            color: #d32f2f;
+        }
+
+        .not-done:hover {
+            background-color: #ffcdd2;
+            transform: scale(1.05);
+        }
+
+        .done {
+            background-color: #e8f5e8;
+            color: #2e7d32;
+        }
+
+        .done:hover {
+            background-color: #c8e6c9;
+            transform: scale(1.05);
+        }
+
+        .summary {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #4CAF50;
+        }
+
+        .summary h3 {
+            margin-top: 0;
+            color: #333;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: #4CAF50;
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Progress Tracking Table</h1>
+        <table id="progressTable">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Audio</th>
+                    <th>Transcript</th>
+                    <th>Notes</th>
+                    <th>Captions</th>
+                    <th>Album Art</th>
+                    <th>Telegram</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Table body will be populated by JavaScript -->
+            </tbody>
+        </table>
+
+        <div class="summary">
+            <h3>Progress Summary</h3>
+            <div>Total Tasks: <span id="totalTasks">0</span></div>
+            <div>Completed Tasks: <span id="completedTasks">0</span></div>
+            <div>Completion Rate: <span id="completionRate">0%</span></div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <button id="resetTable"
+                style="margin-top:15px; padding:8px 18px; font-size:15px; border-radius:4px; border:none; background:#d32f2f; color:white; cursor:pointer;">Reset
+                Table</button>
+        </div>
+
+        <!-- Modal for inserting a new date -->
+        <div id="insertModal"
+            style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.3); z-index:1000; align-items:center; justify-content:center;">
+            <div
+                style="background:white; border-radius:8px; padding:24px 32px; min-width:320px; box-shadow:0 4px 24px rgba(0,0,0,0.2); position:relative; margin:auto;">
+                <div id="modalTitle" style="font-size:18px; font-weight:bold; margin-bottom:16px;">Insert a date under
+                    ...</div>
+                <input id="modalInput" type="text" placeholder="Enter new date"
+                    style="width:100%; padding:8px; font-size:16px; margin-bottom:16px; border-radius:4px; border:1px solid #ccc;" />
+                <div style="display:flex; justify-content:flex-end; gap:10px;">
+                    <button id="modalCancel"
+                        style="padding:8px 16px; font-size:15px; border-radius:4px; border:none; background:#eee; color:#333; cursor:pointer;">Cancel</button>
+                    <button id="modalInsert"
+                        style="padding:8px 16px; font-size:15px; border-radius:4px; border:none; background:#4CAF50; color:white; cursor:pointer; opacity:0.5;"
+                        disabled>Insert</button>
+                </div>
+            </div>
+        </div>
+
+        <script>
+
+            // Firestore document key
+            const FIRESTORE_DOC_KEY = 'main';
+
+            // Default data
+            const defaultDates = [
+                "May 4, Sun", "May 7, Wed", "May 11, Sun", "May 14, Wed", "May 18, Sun", "May 21, Wed",
+                "May 25, Sun", "May 28, Wed", "June 1, Sun", "June 4, Wed", "June 8, Sun", "June 11, Wed",
+                "June 15, Sun", "June 18, Wed", "June 22, Sun", "June 25, Wed", "June 29, Sun", "July 2, Wed",
+                "July 6, Sun", "July 9, Wed", "July 13, Sun", "July 16, Wed", "July 20, Sun", "July 23, Wed",
+                "July 27, Sun", "July 30, Wed"
+            ];
+            const columns = ["Audio", "Transcript", "Notes", "Captions", "Album Art", "Telegram"];
+            let dates = [];
+            let cellStates = {};
+
+            // Save to Firestore
+            function saveToFirestore() {
+                db.collection('progress').doc(FIRESTORE_DOC_KEY).set({
+                    dates: dates,
+                    cellStates: cellStates
+                });
+            }
+
+            // Load from Firestore
+            function loadFromFirestore() {
+                db.collection('progress').doc(FIRESTORE_DOC_KEY).get().then(doc => {
+                    if (doc.exists) {
+                        const data = doc.data();
+                        dates = data.dates || [...defaultDates];
+                        cellStates = data.cellStates || {};
+                        // Ensure all dates have all columns
+                        dates.forEach(date => {
+                            if (!cellStates[date]) cellStates[date] = {};
+                            columns.forEach(col => {
+                                if (typeof cellStates[date][col] !== 'boolean') cellStates[date][col] = false;
+                            });
+                        });
+                    } else {
+                        // No data, use defaults
+                        dates = [...defaultDates];
+                        cellStates = {};
+                        dates.forEach(date => {
+                            cellStates[date] = {};
+                            columns.forEach(col => {
+                                cellStates[date][col] = false;
+                            });
+                        });
+                    }
+                    createTable();
+                });
+            }
+
+            // Function to create a single table row for a given date
+            function createTableRow(date) {
+                const row = document.createElement('tr');
+
+                // Date cell
+                const dateCell = document.createElement('td');
+                dateCell.textContent = date;
+                row.appendChild(dateCell);
+
+                // Task cells
+                columns.forEach(col => {
+                    const cell = document.createElement('td');
+                    const cellContent = document.createElement('div');
+                    cellContent.className = cellStates[date] && cellStates[date][col] ? 'cell-content done' : 'cell-content not-done';
+                    cellContent.textContent = cellStates[date] && cellStates[date][col] ? '✓' : '✗';
+                    cellContent.onclick = () => toggleCell(date, col, cellContent);
+                    cell.appendChild(cellContent);
+                    row.appendChild(cell);
+                });
+
+                // Actions cell
+                const actionsCell = document.createElement('td');
+                actionsCell.style.textAlign = 'center';
+                actionsCell.style.verticalAlign = 'middle';
+                actionsCell.style.height = '50px';
+                actionsCell.style.width = '80px';
+
+                // Create plus icon
+                const plusIcon = document.createElement('span');
+                plusIcon.title = 'Add';
+                plusIcon.style.cursor = 'pointer';
+                plusIcon.style.fontSize = '20px';
+                plusIcon.style.marginRight = '10px';
+                plusIcon.style.color = '#388e3c';
+                plusIcon.style.verticalAlign = 'middle';
+                plusIcon.textContent = '➕';
+                plusIcon.onclick = function () {
+                    const idx = dates.indexOf(date);
+                    showInsertModal(date, idx + 1);
+                };
+
+                // Create trash icon
+                const trashIcon = document.createElement('span');
+                trashIcon.title = 'Delete';
+                trashIcon.style.cursor = 'pointer';
+                trashIcon.style.fontSize = '20px';
+                trashIcon.style.color = '#d32f2f';
+                trashIcon.style.verticalAlign = 'middle';
+                trashIcon.textContent = '🗑️';
+                trashIcon.onclick = function () {
+                    // Remove the row from the table
+                    row.remove();
+                    // Remove the date from cellStates and dates array
+                    delete cellStates[date];
+                    const dateIdx = dates.indexOf(date);
+                    if (dateIdx !== -1) {
+                        dates.splice(dateIdx, 1);
+                    }
+                    updateSummary();
+                    saveToFirestore();
+                };
+
+                actionsCell.appendChild(plusIcon);
+                actionsCell.appendChild(trashIcon);
+                row.appendChild(actionsCell);
+
+                return row;
+            }
+
+            // Function to create table rows
+            function createTable() {
+                const tbody = document.querySelector('#progressTable tbody');
+                tbody.innerHTML = '';
+                dates.forEach(date => {
+                    const row = createTableRow(date);
+                    tbody.appendChild(row);
+                });
+                updateSummary();
+            }
+
+            // Function to toggle cell state
+            function toggleCell(date, column, element) {
+                const currentState = cellStates[date][column];
+                cellStates[date][column] = !currentState;
+
+                if (cellStates[date][column]) {
+                    // Mark as done
+                    element.className = 'cell-content done';
+                    element.textContent = '✓';
+                } else {
+                    // Mark as not done
+                    element.className = 'cell-content not-done';
+                    element.textContent = '✗';
+                }
+
+                updateSummary();
+                saveToFirestore();
+            }
+
+            // Function to update progress summary
+            function updateSummary() {
+                const totalTasks = dates.length * columns.length;
+                let completedTasks = 0;
+
+                dates.forEach(date => {
+                    columns.forEach(col => {
+                        if (cellStates[date][col]) {
+                            completedTasks++;
+                        }
+                    });
+                });
+
+                const completionRate = Math.round((completedTasks / totalTasks) * 100);
+
+                document.getElementById('totalTasks').textContent = totalTasks;
+                document.getElementById('completedTasks').textContent = completedTasks;
+                document.getElementById('completionRate').textContent = completionRate + '%';
+                document.getElementById('progressFill').style.width = completionRate + '%';
+            }
+
+            // Modal logic
+            let modalContext = { underDate: null, insertIndex: null };
+            const insertModal = document.getElementById('insertModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalInput = document.getElementById('modalInput');
+            const modalCancel = document.getElementById('modalCancel');
+            const modalInsert = document.getElementById('modalInsert');
+
+            function showInsertModal(underDate, insertIndex) {
+                modalContext.underDate = underDate;
+                modalContext.insertIndex = insertIndex;
+                modalTitle.textContent = `Insert a date under ${underDate}`;
+                modalInput.value = '';
+                modalInsert.disabled = true;
+                modalInsert.style.opacity = 0.5;
+                insertModal.style.display = 'flex';
+                modalInput.focus();
+            }
+
+            function hideInsertModal() {
+                insertModal.style.display = 'none';
+            }
+
+            modalCancel.onclick = hideInsertModal;
+            modalInput.oninput = function () {
+                if (modalInput.value.trim() !== '') {
+                    modalInsert.disabled = false;
+                    modalInsert.style.opacity = 1;
+                } else {
+                    modalInsert.disabled = true;
+                    modalInsert.style.opacity = 0.5;
+                }
+            };
+
+            // Insert logic for modal
+            modalInsert.onclick = function () {
+                const newDate = modalInput.value.trim();
+                if (!newDate) return;
+                // Insert new date into dates array at the correct index
+                dates.splice(modalContext.insertIndex, 0, newDate);
+                // Initialize cellStates for new date
+                cellStates[newDate] = {};
+                columns.forEach(col => {
+                    cellStates[newDate][col] = false;
+                });
+                hideInsertModal();
+                createTable();
+                saveToFirestore();
+            };
+
+            // Reset table to default values
+            document.getElementById('resetTable').onclick = function () {
+                if (confirm('Are you sure you want to reset the table to its default state? This cannot be undone.')) {
+                    dates = [...defaultDates];
+                    cellStates = {};
+                    dates.forEach(date => {
+                        cellStates[date] = {};
+                        columns.forEach(col => {
+                            cellStates[date][col] = false;
+                        });
+                    });
+                    createTable();
+                    saveToFirestore();
+                }
+            };
+
+            // Load from Firestore on page load
+            loadFromFirestore();
+        </script>
+</body>
+
+</html>
