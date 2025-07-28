@@ -154,6 +154,9 @@
 </head>
 
 <body>
+    <!-- Edit/View Mode Indicator -->
+    <div id="modeIndicator"
+        style="text-align:center; font-size:18px; font-weight:bold; margin-bottom:10px; color:#1976D2;">View Mode</div>
     <div class="container">
         <h1>Progress Tracking Table</h1>
         <table id="progressTable">
@@ -188,6 +191,25 @@
         </div>
 
         <!-- Modal for inserting a new date -->
+        <!-- Modal for edit access password -->
+        <div id="editAccessModal"
+            style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.3); z-index:2000; align-items:center; justify-content:center;">
+            <div
+                style="background:white; border-radius:8px; padding:24px 32px; min-width:320px; box-shadow:0 4px 24px rgba(0,0,0,0.2); position:relative; margin:auto;">
+                <div style="font-size:18px; font-weight:bold; margin-bottom:16px;">Edit Access Required</div>
+                <input id="editAccessInput" type="password" placeholder="Enter password"
+                    style="width:100%; padding:8px; font-size:16px; margin-bottom:16px; border-radius:4px; border:1px solid #ccc;" />
+                <div style="display:flex; justify-content:flex-end; gap:10px;">
+                    <button id="editAccessCancel"
+                        style="padding:8px 16px; font-size:15px; border-radius:4px; border:none; background:#eee; color:#333; cursor:pointer;">Stay
+                        on View Mode</button>
+                    <button id="editAccessSubmit"
+                        style="padding:8px 16px; font-size:15px; border-radius:4px; border:none; background:#4CAF50; color:white; cursor:pointer; opacity:0.5;"
+                        disabled>Get Edit Access</button>
+                </div>
+                <div id="editAccessError" style="color:#d32f2f; margin-top:10px; font-size:15px; display:none;"></div>
+            </div>
+        </div>
         <div id="insertModal"
             style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.3); z-index:1000; align-items:center; justify-content:center;">
             <div
@@ -211,6 +233,10 @@
             // Firestore document key
             const FIRESTORE_DOC_KEY = 'main';
 
+            // Edit mode state and password
+            let editMode = false;
+            const EDIT_PASSWORD = "28Feb1965";
+
             // Default data
             const defaultDates = [
                 "May 4, Sun", "May 7, Wed", "May 11, Sun", "May 14, Wed", "May 18, Sun", "May 21, Wed",
@@ -222,6 +248,59 @@
             const columns = ["Audio", "Transcript", "Notes", "Captions", "Album Art", "Telegram"];
             let dates = [];
             let cellStates = {};
+            // Edit access modal logic
+            const editAccessModal = document.getElementById('editAccessModal');
+            const editAccessInput = document.getElementById('editAccessInput');
+            const editAccessCancel = document.getElementById('editAccessCancel');
+            const editAccessSubmit = document.getElementById('editAccessSubmit');
+            const editAccessError = document.getElementById('editAccessError');
+            const modeIndicator = document.getElementById('modeIndicator');
+
+            function showEditAccessModal() {
+                editAccessInput.value = '';
+                editAccessSubmit.disabled = true;
+                editAccessSubmit.style.opacity = 0.5;
+                editAccessError.style.display = 'none';
+                editAccessModal.style.display = 'flex';
+                editAccessInput.focus();
+            }
+
+            function hideEditAccessModal() {
+                editAccessModal.style.display = 'none';
+                editAccessError.style.display = 'none';
+            }
+
+            editAccessCancel.onclick = hideEditAccessModal;
+            editAccessInput.oninput = function () {
+                if (editAccessInput.value.trim() !== '') {
+                    editAccessSubmit.disabled = false;
+                    editAccessSubmit.style.opacity = 1;
+                } else {
+                    editAccessSubmit.disabled = true;
+                    editAccessSubmit.style.opacity = 0.5;
+                }
+                editAccessError.style.display = 'none';
+            };
+
+            editAccessSubmit.onclick = function () {
+                if (editAccessInput.value === EDIT_PASSWORD) {
+                    editMode = true;
+                    modeIndicator.textContent = 'Edit Mode';
+                    modeIndicator.style.color = '#388e3c';
+                    hideEditAccessModal();
+                } else {
+                    editAccessError.textContent = 'Incorrect password.';
+                    editAccessError.style.display = 'block';
+                }
+            };
+
+            function requireEditAccess(action) {
+                if (!editMode) {
+                    showEditAccessModal();
+                    return false;
+                }
+                return true;
+            }
 
             // Save to Firestore
             function saveToFirestore() {
@@ -275,7 +354,10 @@
                     const cellContent = document.createElement('div');
                     cellContent.className = cellStates[date] && cellStates[date][col] ? 'cell-content done' : 'cell-content not-done';
                     cellContent.textContent = cellStates[date] && cellStates[date][col] ? '✓' : '✗';
-                    cellContent.onclick = () => toggleCell(date, col, cellContent);
+                    cellContent.onclick = () => {
+                        if (!requireEditAccess()) return;
+                        toggleCell(date, col, cellContent);
+                    };
                     cell.appendChild(cellContent);
                     row.appendChild(cell);
                 });
@@ -297,6 +379,7 @@
                 plusIcon.style.verticalAlign = 'middle';
                 plusIcon.textContent = '➕';
                 plusIcon.onclick = function () {
+                    if (!requireEditAccess()) return;
                     const idx = dates.indexOf(date);
                     showInsertModal(date, idx + 1);
                 };
@@ -310,6 +393,8 @@
                 trashIcon.style.verticalAlign = 'middle';
                 trashIcon.textContent = '🗑️';
                 trashIcon.onclick = function () {
+                    if (!requireEditAccess()) return;
+                    if (!confirm('Are you sure you want to delete this row? This action cannot be undone.')) return;
                     // Remove the row from the table
                     row.remove();
                     // Remove the date from cellStates and dates array
@@ -432,6 +517,7 @@
 
             // Reset table to default values
             document.getElementById('resetTable').onclick = function () {
+                if (!requireEditAccess()) return;
                 if (confirm('Are you sure you want to reset the table to its default state? This cannot be undone.')) {
                     dates = [...defaultDates];
                     cellStates = {};
